@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Michi - Generador de Paletas IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes loading {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-loading {
+            animation: loading 2s ease-in-out forwards;
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-in;
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-white">
+    <!-- Pantalla de carga -->
+    <div id="loadingScreen" class="min-h-screen flex items-center justify-center">
+        <div class="transition-all duration-500" id="logoContainer">
+            <svg viewBox="0 0 240 240" class="w-32 h-32 mx-auto mb-6">
+                <circle cx="120" cy="120" r="100" fill="black"/>
+                <circle cx="120" cy="120" r="85" fill="white"/>
+                <path d="M 120 75 Q 95 75 85 95 Q 80 105 80 115 Q 80 120 82 122 L 88 125 Q 95 130 105 132 Q 112 133 120 133 Q 128 133 135 132 Q 145 130 152 125 L 158 122 Q 160 120 160 115 Q 160 105 155 95 Q 145 75 120 75 Z" fill="black"/>
+                <path d="M 88 85 L 80 65 L 95 80 Z" fill="black"/>
+                <path d="M 152 85 L 160 65 L 145 80 Z" fill="black"/>
+                <ellipse cx="120" cy="165" rx="28" ry="32" fill="black"/>
+            </svg>
+            <h1 class="text-6xl font-light text-black text-center tracking-tight">Michi</h1>
+            <div class="w-48 h-0.5 bg-gray-200 mx-auto mt-8 overflow-hidden">
+                <div class="h-full bg-black animate-loading"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aplicación principal -->
+    <div id="mainApp" class="hidden min-h-screen">
+        <div class="max-w-4xl mx-auto px-6 py-12">
+            <!-- Header -->
+            <div class="text-center mb-16">
+                <svg viewBox="0 0 240 240" class="w-20 h-20 mx-auto mb-6">
+                    <circle cx="120" cy="120" r="100" fill="black"/>
+                    <circle cx="120" cy="120" r="85" fill="white"/>
+                    <path d="M 120 75 Q 95 75 85 95 Q 80 105 80 115 Q 80 120 82 122 L 88 125 Q 95 130 105 132 Q 112 133 120 133 Q 128 133 135 132 Q 145 130 152 125 L 158 122 Q 160 120 160 115 Q 160 105 155 95 Q 145 75 120 75 Z" fill="black"/>
+                    <path d="M 88 85 L 80 65 L 95 80 Z" fill="black"/>
+                    <path d="M 152 85 L 160 65 L 145 80 Z" fill="black"/>
+                    <ellipse cx="120" cy="165" rx="28" ry="32" fill="black"/>
+                </svg>
+                <h1 class="text-5xl font-light text-black mb-3 tracking-tight">Michi</h1>
+                <p class="text-gray-500 text-sm">Generador de paletas con IA</p>
+            </div>
+
+            <!-- Input Section -->
+            <div class="mb-12">
+                <div class="flex gap-2 mb-3">
+                    <input
+                        type="text"
+                        id="promptInput"
+                        placeholder="Describe tu paleta..."
+                        class="flex-1 px-4 py-3 border border-gray-300 focus:outline-none focus:border-black text-sm"
+                    />
+                    <button
+                        id="generateBtn"
+                        class="px-8 py-3 bg-black text-white text-sm hover:bg-gray-800 transition-colors"
+                    >
+                        Generar
+                    </button>
+                </div>
+
+                <!-- Example prompts -->
+                <div class="flex gap-2 text-xs">
+                    <button class="example-btn text-gray-400 hover:text-black transition-colors">Atardecer tropical</button>
+                    <button class="example-btn text-gray-400 hover:text-black transition-colors">Café en otoño</button>
+                    <button class="example-btn text-gray-400 hover:text-black transition-colors">Neón futurista</button>
+                    <button class="example-btn text-gray-400 hover:text-black transition-colors">Bosque mágico</button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="hidden flex items-center justify-center py-20">
+                <svg class="animate-spin w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+
+            <!-- Palettes Container -->
+            <div id="palettesContainer" class="space-y-8"></div>
+
+            <!-- Empty state -->
+            <div id="emptyState" class="text-center py-20 border border-gray-200">
+                <p class="text-gray-400 text-sm">Describe un concepto para generar paletas</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Animación de carga inicial
+        setTimeout(() => {
+            document.getElementById('logoContainer').style.opacity = '0';
+            document.getElementById('logoContainer').style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('mainApp').classList.remove('hidden');
+                document.getElementById('mainApp').classList.add('animate-fadeIn');
+            }, 500);
+        }, 2000);
+
+        const promptInput = document.getElementById('promptInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const loadingState = document.getElementById('loadingState');
+        const palettesContainer = document.getElementById('palettesContainer');
+        const emptyState = document.getElementById('emptyState');
+        const exampleBtns = document.querySelectorAll('.example-btn');
+
+        // Event listeners para ejemplos
+        exampleBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                promptInput.value = btn.textContent;
+            });
+        });
+
+        // Generar paletas
+        generateBtn.addEventListener('click', generatePalettes);
+        promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') generatePalettes();
+        });
+
+        async function generatePalettes() {
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            // Mostrar loading
+            loadingState.classList.remove('hidden');
+            emptyState.style.display = 'none';
+            palettesContainer.innerHTML = '';
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generando...';
+
+            try {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 1000,
+                        messages: [
+                            { 
+                                role: "user", 
+                                content: `Generate 3 unique color palettes based on this description: "${prompt}"
+              
+Return ONLY a JSON array with this exact structure, no other text:
+[
+  {
+    "name": "Palette Name",
+    "colors": ["#HEX1", "#HEX2", "#HEX3", "#HEX4", "#HEX5"],
+    "description": "Brief description of the palette"
+  }
+]
+
+Each palette should have exactly 5 colors that work well together. Make the palettes distinct from each other.` 
+                            }
+                        ],
+                    })
+                });
+
+                const data = await response.json();
+                const text = data.content[0].text.trim();
+                const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+                const palettes = JSON.parse(cleanText);
+
+                displayPalettes(palettes);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al generar paletas. Por favor intenta de nuevo.');
+            } finally {
+                loadingState.classList.add('hidden');
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generar';
+            }
+        }
+
+        function displayPalettes(palettes) {
+            palettesContainer.innerHTML = '';
+            
+            palettes.forEach((palette, paletteIndex) => {
+                const paletteDiv = document.createElement('div');
+                paletteDiv.className = 'border border-gray-200';
+                
+                // Color bars
+                const colorsHTML = palette.colors.map(color => `
+                    <div class="flex-1 relative group cursor-pointer color-bar" style="background-color: ${color}" data-color="${color}">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20">
+                            <span class="text-white font-mono text-xs bg-black px-2 py-1">${color}</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                const colorCodesHTML = palette.colors.map(color => `
+                    <code class="px-2 py-1 bg-gray-50 text-xs font-mono text-gray-600">${color}</code>
+                `).join('');
+
+                paletteDiv.innerHTML = `
+                    <div class="flex h-40">${colorsHTML}</div>
+                    <div class="p-6 bg-white">
+                        <div class="flex items-start justify-between mb-4">
+                            <div>
+                                <h3 class="text-lg font-light text-black mb-1">${palette.name}</h3>
+                                <p class="text-gray-500 text-sm">${palette.description}</p>
+                            </div>
+                            <div class="flex gap-1">
+                                <button class="copy-btn p-2 hover:bg-gray-100 transition-colors" data-colors='${JSON.stringify(palette.colors)}' title="Copiar">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                    </svg>
+                                </button>
+                                <button class="download-btn p-2 hover:bg-gray-100 transition-colors" data-palette='${JSON.stringify(palette)}' title="Descargar">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">${colorCodesHTML}</div>
+                    </div>
+                `;
+
+                palettesContainer.appendChild(paletteDiv);
+            });
+
+            // Event listeners para copiar colores individuales
+            document.querySelectorAll('.color-bar').forEach(bar => {
+                bar.addEventListener('click', () => {
+                    const color = bar.dataset.color;
+                    navigator.clipboard.writeText(color);
+                });
+            });
+
+            // Event listeners para copiar paleta completa
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const colors = JSON.parse(btn.dataset.colors);
+                    navigator.clipboard.writeText(colors.join(', '));
+                    btn.innerHTML = '<svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                    setTimeout(() => {
+                        btn.innerHTML = '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>';
+                    }, 2000);
+                });
+            });
+
+            // Event listeners para descargar
+            document.querySelectorAll('.download-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const palette = JSON.parse(btn.dataset.palette);
+                    downloadPalette(palette);
+                });
+            });
+        }
+
+        function downloadPalette(palette) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1000;
+            canvas.height = 200;
+            const ctx = canvas.getContext('2d');
+            
+            const colorWidth = canvas.width / palette.colors.length;
+            palette.colors.forEach((color, i) => {
+                ctx.fillStyle = color;
+                ctx.fillRect(i * colorWidth, 0, colorWidth, canvas.height);
+            });
+
+            const dataUrl = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `${palette.name.replace(/\s+/g, '-').toLowerCase()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
