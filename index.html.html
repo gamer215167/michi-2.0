@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Michi - Generador de Paletas IA</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -112,23 +112,32 @@
     </div>
 
     <script>
-        // Animación de carga inicial
-        setTimeout(() => {
-            document.getElementById('logoContainer').style.opacity = '0';
-            document.getElementById('logoContainer').style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                document.getElementById('loadingScreen').style.display = 'none';
-                document.getElementById('mainApp').classList.remove('hidden');
-                document.getElementById('mainApp').classList.add('animate-fadeIn');
-            }, 500);
-        }, 2000);
-
+        // --- Estado y elementos ---
+        let isGenerating = false; // flag para evitar ejecuciones concurrentes
         const promptInput = document.getElementById('promptInput');
         const generateBtn = document.getElementById('generateBtn');
         const loadingState = document.getElementById('loadingState');
         const palettesContainer = document.getElementById('palettesContainer');
         const emptyState = document.getElementById('emptyState');
         const exampleBtns = document.querySelectorAll('.example-btn');
+
+        // Animación de carga inicial
+        setTimeout(() => {
+            const logo = document.getElementById('logoContainer');
+            if (logo) {
+                logo.style.opacity = '0';
+                logo.style.transform = 'scale(0.95)';
+            }
+            setTimeout(() => {
+                const ls = document.getElementById('loadingScreen');
+                if (ls) ls.style.display = 'none';
+                const app = document.getElementById('mainApp');
+                if (app) {
+                    app.classList.remove('hidden');
+                    app.classList.add('animate-fadeIn');
+                }
+            }, 500);
+        }, 2000);
 
         // Event listeners para ejemplos
         exampleBtns.forEach(btn => {
@@ -137,11 +146,55 @@
             });
         });
 
-        // Generar paletas
-        generateBtn.addEventListener('click', generatePalettes);
-        promptInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') generatePalettes();
+        // Evitar múltiples envíos rápidos
+        function safeStartGenerating() {
+            if (isGenerating) return false;
+            isGenerating = true;
+            return true;
+        }
+        function safeStopGenerating() {
+            isGenerating = false;
+        }
+
+        // Gestionar generación (debounced/guarded)
+        generateBtn.addEventListener('click', () => {
+            if (!safeStartGenerating()) return;
+            generatePalettes();
         });
+        promptInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (!safeStartGenerating()) return;
+                generatePalettes();
+            }
+        });
+
+        // --- Utilidades ---
+        // Escritura segura al clipboard con fallback
+        async function safeWriteClipboard(text) {
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                }
+            } catch (err) {
+                console.warn('navigator.clipboard failed:', err);
+            }
+            // Fallback: textarea temporal
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                return true;
+            } catch (err) {
+                console.warn('fallback clipboard failed:', err);
+                return false;
+            }
+        }
 
         // Función para convertir HSL a HEX
         function hslToHex(h, s, l) {
@@ -155,65 +208,67 @@
             return `#${f(0)}${f(8)}${f(4)}`;
         }
 
-        // Función para generar paletas basadas en el prompt
-        function generatePalettes() {
-            const prompt = promptInput.value.trim().toLowerCase();
-            if (!prompt) return;
-
-            // Mostrar loading
+        // --- Generación de paletas ---
+        async function generatePalettes() {
+            // Desactivar controles
+            generateBtn.disabled = true;
+            promptInput.disabled = true;
             loadingState.classList.remove('hidden');
             emptyState.style.display = 'none';
             palettesContainer.innerHTML = '';
-            generateBtn.disabled = true;
-            generateBtn.textContent = 'Generando...';
 
-            // Simular tiempo de procesamiento
-            setTimeout(() => {
-                const palettes = createPalettesFromPrompt(prompt);
+            try {
+                const prompt = promptInput.value.trim().toLowerCase();
+                if (!prompt) {
+                    // nada que generar
+                    return;
+                }
+
+                // Simular procesamiento (o sustituir por llamada API si quieres)
+                const palettes = await new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve(createPalettesFromPrompt(prompt));
+                    }, 600);
+                });
+
                 displayPalettes(palettes);
-                
+            } catch (err) {
+                console.error('Error generando paletas:', err);
+                alert('Error al generar paletas. Revisa la consola para más detalles.');
+            } finally {
+                // Rehabilitar controles
                 loadingState.classList.add('hidden');
                 generateBtn.disabled = false;
-                generateBtn.textContent = 'Generar';
-            }, 800);
+                promptInput.disabled = false;
+                safeStopGenerating();
+            }
         }
 
-        // Crear paletas basadas en palabras clave
+        // Crear paletas basadas en palabras clave (sin modificaciones significativas)
         function createPalettesFromPrompt(prompt) {
             const keywords = {
-                // Naturaleza
                 'bosque': { base: 120, sat: 45, names: ['Bosque Encantado', 'Verde Natural', 'Selva Mística'] },
                 'océano': { base: 200, sat: 60, names: ['Océano Profundo', 'Azul Marina', 'Olas del Mar'] },
                 'desierto': { base: 35, sat: 70, names: ['Desierto Cálido', 'Arena Dorada', 'Sahara'] },
                 'atardecer': { base: 15, sat: 80, names: ['Atardecer Tropical', 'Cielo de Fuego', 'Ocaso Vibrante'] },
                 'primavera': { base: 75, sat: 55, names: ['Primavera Fresca', 'Jardín Florido', 'Brotes Nuevos'] },
-                
-                // Emociones/Moods
                 'alegre': { base: 50, sat: 75, names: ['Alegría Vibrante', 'Energía Positiva', 'Felicidad Pura'] },
                 'tranquilo': { base: 190, sat: 35, names: ['Calma Serena', 'Paz Interior', 'Tranquilidad'] },
                 'elegante': { base: 280, sat: 25, names: ['Elegancia Sofisticada', 'Lujo Discreto', 'Refinamiento'] },
                 'enérgico': { base: 0, sat: 85, names: ['Energía Explosiva', 'Poder Dinámico', 'Fuerza Vital'] },
-                
-                // Lugares/Ambientes
                 'café': { base: 25, sat: 45, names: ['Café Acogedor', 'Aroma de Mañana', 'Espresso Bar'] },
                 'neón': { base: 300, sat: 90, names: ['Neón Futurista', 'Cyberpunk', 'Ciudad Nocturna'] },
                 'minimalista': { base: 0, sat: 5, names: ['Minimalismo Puro', 'Simplicidad', 'Zen Moderno'] },
                 'tropical': { base: 165, sat: 70, names: ['Trópico Vibrante', 'Paraíso Caribeño', 'Isla Exótica'] },
-                
-                // Estaciones
                 'verano': { base: 45, sat: 75, names: ['Verano Radiante', 'Sol Brillante', 'Calor Intenso'] },
                 'otoño': { base: 30, sat: 60, names: ['Otoño Cálido', 'Hojas Caídas', 'Cosecha'] },
-                'invierno': { base: 210, sat: 20, names: ['Invierno Frío', 'Hielo Cristalino', 'Nieve Pura'] },
-                
-                // Otros
-                'vintage': { base: 40, sat: 40, names: ['Vintage Retro', 'Nostalgia', 'Época Dorada'] },
+                'invierno': { base: 210, sat: 20, names: ['Invierno Fr\u0000o', 'Hielo Cristalino', 'Nieve Pura'] },
+                'vintage': { base: 40, sat: 40, names: ['Vintage Retro', 'Nostalgia', '\u0000poca Dorada'] },
                 'pastel': { base: 320, sat: 30, names: ['Pastel Suave', 'Dulzura', 'Nube Rosada'] },
                 'oscuro': { base: 240, sat: 15, names: ['Oscuridad Profunda', 'Noche Misteriosa', 'Sombras'] },
             };
 
-            // Buscar la mejor coincidencia
-            let config = { base: 180, sat: 50, names: ['Paleta Única', 'Colores Armoniosos', 'Combinación Especial'] };
-            
+            let config = { base: 180, sat: 50, names: ['Paleta \u0000nica', 'Colores Armoniosos', 'Combinaci\u0000n Especial'] };
             for (const [key, value] of Object.entries(keywords)) {
                 if (prompt.includes(key)) {
                     config = value;
@@ -221,30 +276,29 @@
                 }
             }
 
-            // Generar 3 paletas diferentes
             return [
                 generatePalette(config.names[0], config.base, config.sat, 'analogous', getDescription(config.names[0])),
-                generatePalette(config.names[1], config.base + 30, config.sat - 10, 'complementary', getDescription(config.names[1])),
-                generatePalette(config.names[2], config.base - 20, config.sat + 15, 'triadic', getDescription(config.names[2]))
+                generatePalette(config.names[1], (config.base + 30) % 360, Math.max(0, config.sat - 10), 'complementary', getDescription(config.names[1])),
+                generatePalette(config.names[2], (config.base + 340) % 360, Math.min(100, config.sat + 15), 'triadic', getDescription(config.names[2]))
             ];
         }
 
         function getDescription(name) {
             const descriptions = {
-                'Bosque Encantado': 'Tonos verdes profundos que evocan la serenidad de un bosque mágico',
+                'Bosque Encantado': 'Tonos verdes profundos que evocan la serenidad de un bosque m\u0000gico',
                 'Verde Natural': 'Paleta terrosa con toques de naturaleza fresca y vibrante',
-                'Selva Mística': 'Verdes intensos mezclados con toques de tierra y vida',
-                'Océano Profundo': 'Azules marinos que capturan la esencia del mar',
-                'Azul Marina': 'Tonalidades acuáticas tranquilas y refrescantes',
-                'Olas del Mar': 'Del azul claro al profundo, como las capas del océano',
-                'Desierto Cálido': 'Naranjas y amarillos que transmiten el calor del desierto',
-                'Arena Dorada': 'Tonos cálidos inspirados en dunas infinitas',
+                'Selva M\u0000stica': 'Verdes intensos mezclados con toques de tierra y vida',
+                'Oc\u0000ano Profundo': 'Azules marinos que capturan la esencia del mar',
+                'Azul Marina': 'Tonalidades acu\u0000ticas tranquilas y refrescantes',
+                'Olas del Mar': 'Del azul claro al profundo, como las capas del oc\u0000ano',
+                'Desierto C\u0000alido': 'Naranjas y amarillos que transmiten el calor del desierto',
+                'Arena Dorada': 'Tonos c\u0000alidos inspirados en dunas infinitas',
                 'Sahara': 'Paleta terrosa con intensidad del sol del desierto',
                 'Atardecer Tropical': 'Rojos, naranjas y rosas del cielo al caer el sol',
-                'Cielo de Fuego': 'Colores intensos de un atardecer dramático',
-                'Ocaso Vibrante': 'Del naranja brillante al púrpura profundo',
+                'Cielo de Fuego': 'Colores intensos de un atardecer dram\u0000tico',
+                'Ocaso Vibrante': 'Del naranja brillante al p\u0000rpura profundo',
                 'Primavera Fresca': 'Verdes claros y amarillos como brotes nuevos',
-                'Jardín Florido': 'Paleta fresca con vida y crecimiento',
+                'Jard\u0000n Florido': 'Paleta fresca con vida y crecimiento',
                 'Brotes Nuevos': 'Tonos jóvenes y llenos de energía primaveral',
                 'Alegría Vibrante': 'Colores brillantes que irradian felicidad',
                 'Energía Positiva': 'Amarillos y naranjas llenos de optimismo',
@@ -276,7 +330,7 @@
                 'Otoño Cálido': 'Naranjas, rojos y marrones de hojas caídas',
                 'Hojas Caídas': 'Paleta acogedora de la estación de cosecha',
                 'Cosecha': 'Tonos tierra ricos y abundantes',
-                'Invierno Frío': 'Azules gélidos y grises de días helados',
+                'Invierno Fr\u0000o': 'Azules gélidos y grises de días helados',
                 'Hielo Cristalino': 'Paleta fría y cristalina como nieve',
                 'Nieve Pura': 'Blancos y azules del paisaje invernal',
                 'Vintage Retro': 'Tonos nostálgicos de épocas pasadas',
@@ -288,50 +342,42 @@
                 'Oscuridad Profunda': 'Azules y grises oscuros misteriosos',
                 'Noche Misteriosa': 'Tonos profundos llenos de intriga',
                 'Sombras': 'Paleta oscura con carácter dramático',
-                'Paleta Única': 'Combinación armoniosa de colores balanceados',
+                'Paleta \u0000nica': 'Combinación armoniosa de colores balanceados',
                 'Colores Armoniosos': 'Tonos que funcionan perfectamente juntos',
-                'Combinación Especial': 'Paleta personalizada según tu concepto'
+                'Combinaci\u0000n Especial': 'Paleta personalizada según tu concepto'
             };
             return descriptions[name] || 'Paleta generada especialmente para tu concepto';
         }
 
         function generatePalette(name, baseHue, baseSat, type, description) {
             const colors = [];
-            
             if (type === 'analogous') {
-                // Colores análogos (cercanos en el círculo cromático)
                 for (let i = 0; i < 5; i++) {
                     const hue = (baseHue + (i * 15)) % 360;
                     const sat = baseSat + (Math.random() * 20 - 10);
                     const light = 40 + (i * 12);
-                    colors.push(hslToHex(hue, Math.max(0, Math.min(100, sat)), light));
+                    colors.push(hslToHex(hue, Math.max(0, Math.min(100, sat)), Math.max(0, Math.min(100, light))));
                 }
             } else if (type === 'complementary') {
-                // Colores complementarios
                 colors.push(hslToHex(baseHue, baseSat, 25));
-                colors.push(hslToHex(baseHue, baseSat + 10, 45));
+                colors.push(hslToHex(baseHue, Math.min(100, baseSat + 10), 45));
                 colors.push(hslToHex((baseHue + 180) % 360, baseSat, 50));
-                colors.push(hslToHex((baseHue + 180) % 360, baseSat - 15, 65));
-                colors.push(hslToHex(baseHue, baseSat - 20, 75));
+                colors.push(hslToHex((baseHue + 180) % 360, Math.max(0, baseSat - 15), 65));
+                colors.push(hslToHex(baseHue, Math.max(0, baseSat - 20), 75));
             } else {
-                // Triádica
                 colors.push(hslToHex(baseHue, baseSat, 30));
                 colors.push(hslToHex((baseHue + 120) % 360, baseSat, 45));
                 colors.push(hslToHex((baseHue + 240) % 360, baseSat, 50));
-                colors.push(hslToHex(baseHue, baseSat - 15, 65));
-                colors.push(hslToHex((baseHue + 120) % 360, baseSat - 20, 75));
+                colors.push(hslToHex(baseHue, Math.max(0, baseSat - 15), 65));
+                colors.push(hslToHex((baseHue + 120) % 360, Math.max(0, baseSat - 20), 75));
             }
-
             return { name, colors, description };
         }
 
+        // --- Render y eventos (event delegation) ---
         function displayPalettes(palettes) {
             palettesContainer.innerHTML = '';
-            
-            palettes.forEach((palette, paletteIndex) => {
-                const paletteDiv = document.createElement('div');
-                paletteDiv.className = 'border border-gray-200';
-                
+            palettes.forEach((palette) => {
                 const colorsHTML = palette.colors.map(color => `
                     <div class="flex-1 relative group cursor-pointer color-bar" style="background-color: ${color}" data-color="${color}">
                         <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20">
@@ -344,7 +390,9 @@
                     <code class="px-2 py-1 bg-gray-50 text-xs font-mono text-gray-600">${color}</code>
                 `).join('');
 
-                paletteDiv.innerHTML = `
+                const div = document.createElement('div');
+                div.className = 'border border-gray-200';
+                div.innerHTML = `
                     <div class="flex h-40">${colorsHTML}</div>
                     <div class="p-6 bg-white">
                         <div class="flex items-start justify-between mb-4">
@@ -368,56 +416,70 @@
                         <div class="flex gap-2 flex-wrap">${colorCodesHTML}</div>
                     </div>
                 `;
-
-                palettesContainer.appendChild(paletteDiv);
-            });
-
-            // Event listeners
-            document.querySelectorAll('.color-bar').forEach(bar => {
-                bar.addEventListener('click', () => {
-                    const color = bar.dataset.color;
-                    navigator.clipboard.writeText(color);
-                });
-            });
-
-            document.querySelectorAll('.copy-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const colors = JSON.parse(btn.dataset.colors);
-                    navigator.clipboard.writeText(colors.join(', '));
-                    btn.innerHTML = '<svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
-                    setTimeout(() => {
-                        btn.innerHTML = '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'></path></svg>';
-                    }, 2000);
-                });
-            });
-
-            document.querySelectorAll('.download-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const palette = JSON.parse(btn.dataset.palette);
-                    downloadPalette(palette);
-                });
+                palettesContainer.appendChild(div);
             });
         }
 
-        function downloadPalette(palette) {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1000;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-            
-            const colorWidth = canvas.width / palette.colors.length;
-            palette.colors.forEach((color, i) => {
-                ctx.fillStyle = color;
-                ctx.fillRect(i * colorWidth, 0, colorWidth, canvas.height);
-            });
+        // Delegación de eventos en container (más eficiente)
+        palettesContainer.addEventListener('click', async (e) => {
+            const btnCopy = e.target.closest('.copy-btn');
+            if (btnCopy) {
+                try {
+                    const colors = JSON.parse(btnCopy.getAttribute('data-colors') || '[]');
+                    await safeWriteClipboard(colors.join(', '));
+                    // feedback visual (cambia temporalmente el icono)
+                    const prev = btnCopy.innerHTML;
+                    btnCopy.innerHTML = '<svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                    setTimeout(() => btnCopy.innerHTML = prev, 1400);
+                } catch (err) {
+                    console.warn('Error copiando paleta:', err);
+                }
+                return;
+            }
 
-            const dataUrl = canvas.toDataURL('image/png');
-            const a = document.createElement('a');
-            a.href = dataUrl;
-            a.download = `${palette.name.replace(/\s+/g, '-').toLowerCase()}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            const btnDownload = e.target.closest('.download-btn');
+            if (btnDownload) {
+                try {
+                    const palette = JSON.parse(btnDownload.getAttribute('data-palette') || '{}');
+                    downloadPalette(palette);
+                } catch (err) {
+                    console.warn('Error descargando paleta:', err);
+                }
+                return;
+            }
+
+            const colorBar = e.target.closest('.color-bar');
+            if (colorBar) {
+                const color = colorBar.dataset.color;
+                safeWriteClipboard(color).catch(() => {});
+                return;
+            }
+        });
+
+        // --- Descargar paleta a PNG ---
+        function downloadPalette(palette) {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1000;
+                canvas.height = 200;
+                const ctx = canvas.getContext('2d');
+
+                const colorWidth = canvas.width / (palette.colors?.length || 1);
+                (palette.colors || []).forEach((color, i) => {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(i * colorWidth, 0, colorWidth, canvas.height);
+                });
+
+                const dataUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                a.download = `${(palette.name || 'palette').replace(/\s+/g, '-').toLowerCase()}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } catch (err) {
+                console.warn('Error en downloadPalette:', err);
+            }
         }
     </script>
 </body>
