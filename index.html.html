@@ -83,11 +83,13 @@
                 </div>
 
                 <!-- Example prompts -->
-                <div class="flex gap-2 text-xs">
+                <div class="flex gap-2 text-xs flex-wrap">
                     <button class="example-btn text-gray-400 hover:text-black transition-colors">Atardecer tropical</button>
                     <button class="example-btn text-gray-400 hover:text-black transition-colors">Café en otoño</button>
                     <button class="example-btn text-gray-400 hover:text-black transition-colors">Neón futurista</button>
                     <button class="example-btn text-gray-400 hover:text-black transition-colors">Bosque mágico</button>
+                    <button class="example-btn text-gray-400 hover:text-black transition-colors">Océano profundo</button>
+                    <button class="example-btn text-gray-400 hover:text-black transition-colors">Desierto cálido</button>
                 </div>
             </div>
 
@@ -141,8 +143,21 @@
             if (e.key === 'Enter') generatePalettes();
         });
 
-        async function generatePalettes() {
-            const prompt = promptInput.value.trim();
+        // Función para convertir HSL a HEX
+        function hslToHex(h, s, l) {
+            l /= 100;
+            const a = s * Math.min(l, 1 - l) / 100;
+            const f = n => {
+                const k = (n + h / 30) % 12;
+                const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                return Math.round(255 * color).toString(16).padStart(2, '0');
+            };
+            return `#${f(0)}${f(8)}${f(4)}`;
+        }
+
+        // Función para generar paletas basadas en el prompt
+        function generatePalettes() {
+            const prompt = promptInput.value.trim().toLowerCase();
             if (!prompt) return;
 
             // Mostrar loading
@@ -152,49 +167,162 @@
             generateBtn.disabled = true;
             generateBtn.textContent = 'Generando...';
 
-            try {
-                const response = await fetch("https://api.anthropic.com/v1/messages", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        model: "claude-sonnet-4-20250514",
-                        max_tokens: 1000,
-                        messages: [
-                            { 
-                                role: "user", 
-                                content: `Generate 3 unique color palettes based on this description: "${prompt}"
-              
-Return ONLY a JSON array with this exact structure, no other text:
-[
-  {
-    "name": "Palette Name",
-    "colors": ["#HEX1", "#HEX2", "#HEX3", "#HEX4", "#HEX5"],
-    "description": "Brief description of the palette"
-  }
-]
-
-Each palette should have exactly 5 colors that work well together. Make the palettes distinct from each other.` 
-                            }
-                        ],
-                    })
-                });
-
-                const data = await response.json();
-                const text = data.content[0].text.trim();
-                const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-                const palettes = JSON.parse(cleanText);
-
+            // Simular tiempo de procesamiento
+            setTimeout(() => {
+                const palettes = createPalettesFromPrompt(prompt);
                 displayPalettes(palettes);
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error al generar paletas. Por favor intenta de nuevo.');
-            } finally {
+                
                 loadingState.classList.add('hidden');
                 generateBtn.disabled = false;
                 generateBtn.textContent = 'Generar';
+            }, 800);
+        }
+
+        // Crear paletas basadas en palabras clave
+        function createPalettesFromPrompt(prompt) {
+            const keywords = {
+                // Naturaleza
+                'bosque': { base: 120, sat: 45, names: ['Bosque Encantado', 'Verde Natural', 'Selva Mística'] },
+                'océano': { base: 200, sat: 60, names: ['Océano Profundo', 'Azul Marina', 'Olas del Mar'] },
+                'desierto': { base: 35, sat: 70, names: ['Desierto Cálido', 'Arena Dorada', 'Sahara'] },
+                'atardecer': { base: 15, sat: 80, names: ['Atardecer Tropical', 'Cielo de Fuego', 'Ocaso Vibrante'] },
+                'primavera': { base: 75, sat: 55, names: ['Primavera Fresca', 'Jardín Florido', 'Brotes Nuevos'] },
+                
+                // Emociones/Moods
+                'alegre': { base: 50, sat: 75, names: ['Alegría Vibrante', 'Energía Positiva', 'Felicidad Pura'] },
+                'tranquilo': { base: 190, sat: 35, names: ['Calma Serena', 'Paz Interior', 'Tranquilidad'] },
+                'elegante': { base: 280, sat: 25, names: ['Elegancia Sofisticada', 'Lujo Discreto', 'Refinamiento'] },
+                'enérgico': { base: 0, sat: 85, names: ['Energía Explosiva', 'Poder Dinámico', 'Fuerza Vital'] },
+                
+                // Lugares/Ambientes
+                'café': { base: 25, sat: 45, names: ['Café Acogedor', 'Aroma de Mañana', 'Espresso Bar'] },
+                'neón': { base: 300, sat: 90, names: ['Neón Futurista', 'Cyberpunk', 'Ciudad Nocturna'] },
+                'minimalista': { base: 0, sat: 5, names: ['Minimalismo Puro', 'Simplicidad', 'Zen Moderno'] },
+                'tropical': { base: 165, sat: 70, names: ['Trópico Vibrante', 'Paraíso Caribeño', 'Isla Exótica'] },
+                
+                // Estaciones
+                'verano': { base: 45, sat: 75, names: ['Verano Radiante', 'Sol Brillante', 'Calor Intenso'] },
+                'otoño': { base: 30, sat: 60, names: ['Otoño Cálido', 'Hojas Caídas', 'Cosecha'] },
+                'invierno': { base: 210, sat: 20, names: ['Invierno Frío', 'Hielo Cristalino', 'Nieve Pura'] },
+                
+                // Otros
+                'vintage': { base: 40, sat: 40, names: ['Vintage Retro', 'Nostalgia', 'Época Dorada'] },
+                'pastel': { base: 320, sat: 30, names: ['Pastel Suave', 'Dulzura', 'Nube Rosada'] },
+                'oscuro': { base: 240, sat: 15, names: ['Oscuridad Profunda', 'Noche Misteriosa', 'Sombras'] },
+            };
+
+            // Buscar la mejor coincidencia
+            let config = { base: 180, sat: 50, names: ['Paleta Única', 'Colores Armoniosos', 'Combinación Especial'] };
+            
+            for (const [key, value] of Object.entries(keywords)) {
+                if (prompt.includes(key)) {
+                    config = value;
+                    break;
+                }
             }
+
+            // Generar 3 paletas diferentes
+            return [
+                generatePalette(config.names[0], config.base, config.sat, 'analogous', getDescription(config.names[0])),
+                generatePalette(config.names[1], config.base + 30, config.sat - 10, 'complementary', getDescription(config.names[1])),
+                generatePalette(config.names[2], config.base - 20, config.sat + 15, 'triadic', getDescription(config.names[2]))
+            ];
+        }
+
+        function getDescription(name) {
+            const descriptions = {
+                'Bosque Encantado': 'Tonos verdes profundos que evocan la serenidad de un bosque mágico',
+                'Verde Natural': 'Paleta terrosa con toques de naturaleza fresca y vibrante',
+                'Selva Mística': 'Verdes intensos mezclados con toques de tierra y vida',
+                'Océano Profundo': 'Azules marinos que capturan la esencia del mar',
+                'Azul Marina': 'Tonalidades acuáticas tranquilas y refrescantes',
+                'Olas del Mar': 'Del azul claro al profundo, como las capas del océano',
+                'Desierto Cálido': 'Naranjas y amarillos que transmiten el calor del desierto',
+                'Arena Dorada': 'Tonos cálidos inspirados en dunas infinitas',
+                'Sahara': 'Paleta terrosa con intensidad del sol del desierto',
+                'Atardecer Tropical': 'Rojos, naranjas y rosas del cielo al caer el sol',
+                'Cielo de Fuego': 'Colores intensos de un atardecer dramático',
+                'Ocaso Vibrante': 'Del naranja brillante al púrpura profundo',
+                'Primavera Fresca': 'Verdes claros y amarillos como brotes nuevos',
+                'Jardín Florido': 'Paleta fresca con vida y crecimiento',
+                'Brotes Nuevos': 'Tonos jóvenes y llenos de energía primaveral',
+                'Alegría Vibrante': 'Colores brillantes que irradian felicidad',
+                'Energía Positiva': 'Amarillos y naranjas llenos de optimismo',
+                'Felicidad Pura': 'Paleta radiante que eleva el ánimo',
+                'Calma Serena': 'Azules suaves que transmiten paz absoluta',
+                'Paz Interior': 'Tonos relajantes para momentos de tranquilidad',
+                'Tranquilidad': 'Colores que invitan a la meditación y descanso',
+                'Elegancia Sofisticada': 'Púrpuras y grises refinados y distinguidos',
+                'Lujo Discreto': 'Tonos nobles que exudan clase',
+                'Refinamiento': 'Paleta elegante para espacios premium',
+                'Energía Explosiva': 'Rojos intensos llenos de fuerza vital',
+                'Poder Dinámico': 'Colores que transmiten movimiento y acción',
+                'Fuerza Vital': 'Paleta cargada de energía pura',
+                'Café Acogedor': 'Marrones cálidos que recuerdan a un café íntimo',
+                'Aroma de Mañana': 'Tonos tierra con calidez de primera hora',
+                'Espresso Bar': 'Del café oscuro a tonos cremosos',
+                'Neón Futurista': 'Colores vibrantes de una ciudad cyberpunk',
+                'Cyberpunk': 'Magentas y cianes brillantes de un futuro distópico',
+                'Ciudad Nocturna': 'Luces artificiales en la oscuridad urbana',
+                'Minimalismo Puro': 'Grises y blancos en perfecta armonía simple',
+                'Simplicidad': 'Lo esencial en tonos neutros',
+                'Zen Moderno': 'Paleta minimalista que inspira claridad',
+                'Trópico Vibrante': 'Verdes y azules de un paraíso tropical',
+                'Paraíso Caribeño': 'Colores de playas y aguas cristalinas',
+                'Isla Exótica': 'Paleta fresca y vibrante de destino soñado',
+                'Verano Radiante': 'Amarillos y naranjas del sol de verano',
+                'Sol Brillante': 'Tonos cálidos que irradian luz solar',
+                'Calor Intenso': 'Colores que transmiten temperatura elevada',
+                'Otoño Cálido': 'Naranjas, rojos y marrones de hojas caídas',
+                'Hojas Caídas': 'Paleta acogedora de la estación de cosecha',
+                'Cosecha': 'Tonos tierra ricos y abundantes',
+                'Invierno Frío': 'Azules gélidos y grises de días helados',
+                'Hielo Cristalino': 'Paleta fría y cristalina como nieve',
+                'Nieve Pura': 'Blancos y azules del paisaje invernal',
+                'Vintage Retro': 'Tonos nostálgicos de épocas pasadas',
+                'Nostalgia': 'Colores desaturados con carácter vintage',
+                'Época Dorada': 'Paleta cálida de tiempos memorables',
+                'Pastel Suave': 'Rosas y lilas delicados y dulces',
+                'Dulzura': 'Tonos suaves como algodón de azúcar',
+                'Nube Rosada': 'Paleta etérea y romántica',
+                'Oscuridad Profunda': 'Azules y grises oscuros misteriosos',
+                'Noche Misteriosa': 'Tonos profundos llenos de intriga',
+                'Sombras': 'Paleta oscura con carácter dramático',
+                'Paleta Única': 'Combinación armoniosa de colores balanceados',
+                'Colores Armoniosos': 'Tonos que funcionan perfectamente juntos',
+                'Combinación Especial': 'Paleta personalizada según tu concepto'
+            };
+            return descriptions[name] || 'Paleta generada especialmente para tu concepto';
+        }
+
+        function generatePalette(name, baseHue, baseSat, type, description) {
+            const colors = [];
+            
+            if (type === 'analogous') {
+                // Colores análogos (cercanos en el círculo cromático)
+                for (let i = 0; i < 5; i++) {
+                    const hue = (baseHue + (i * 15)) % 360;
+                    const sat = baseSat + (Math.random() * 20 - 10);
+                    const light = 40 + (i * 12);
+                    colors.push(hslToHex(hue, Math.max(0, Math.min(100, sat)), light));
+                }
+            } else if (type === 'complementary') {
+                // Colores complementarios
+                colors.push(hslToHex(baseHue, baseSat, 25));
+                colors.push(hslToHex(baseHue, baseSat + 10, 45));
+                colors.push(hslToHex((baseHue + 180) % 360, baseSat, 50));
+                colors.push(hslToHex((baseHue + 180) % 360, baseSat - 15, 65));
+                colors.push(hslToHex(baseHue, baseSat - 20, 75));
+            } else {
+                // Triádica
+                colors.push(hslToHex(baseHue, baseSat, 30));
+                colors.push(hslToHex((baseHue + 120) % 360, baseSat, 45));
+                colors.push(hslToHex((baseHue + 240) % 360, baseSat, 50));
+                colors.push(hslToHex(baseHue, baseSat - 15, 65));
+                colors.push(hslToHex((baseHue + 120) % 360, baseSat - 20, 75));
+            }
+
+            return { name, colors, description };
         }
 
         function displayPalettes(palettes) {
@@ -204,7 +332,6 @@ Each palette should have exactly 5 colors that work well together. Make the pale
                 const paletteDiv = document.createElement('div');
                 paletteDiv.className = 'border border-gray-200';
                 
-                // Color bars
                 const colorsHTML = palette.colors.map(color => `
                     <div class="flex-1 relative group cursor-pointer color-bar" style="background-color: ${color}" data-color="${color}">
                         <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20">
@@ -245,7 +372,7 @@ Each palette should have exactly 5 colors that work well together. Make the pale
                 palettesContainer.appendChild(paletteDiv);
             });
 
-            // Event listeners para copiar colores individuales
+            // Event listeners
             document.querySelectorAll('.color-bar').forEach(bar => {
                 bar.addEventListener('click', () => {
                     const color = bar.dataset.color;
@@ -253,19 +380,17 @@ Each palette should have exactly 5 colors that work well together. Make the pale
                 });
             });
 
-            // Event listeners para copiar paleta completa
             document.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const colors = JSON.parse(btn.dataset.colors);
                     navigator.clipboard.writeText(colors.join(', '));
                     btn.innerHTML = '<svg class="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
                     setTimeout(() => {
-                        btn.innerHTML = '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>';
+                        btn.innerHTML = '<svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'></path></svg>';
                     }, 2000);
                 });
             });
 
-            // Event listeners para descargar
             document.querySelectorAll('.download-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const palette = JSON.parse(btn.dataset.palette);
